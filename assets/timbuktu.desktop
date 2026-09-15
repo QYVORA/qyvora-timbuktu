@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=TIMBUKTU
+GenericName=Digital Forensics and Incident Response Framework
+Comment=Digital forensics case analysis, evidence collection, and incident-response reporting
+Exec=@PREFIX@/bin/timbuktu
+Icon=@PREFIX@/share/icons/hicolor/512x512/apps/timbuktu.png
+Terminal=true
+Categories=Development;Security;Utility;
+Keywords=forensics;dfir;incident-response;evidence;analysis;security;
