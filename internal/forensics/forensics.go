@@ -197,11 +197,19 @@ type Indicator struct {
 
 // Load parses a case from r, rejecting documents that do not declare the case
 // schema.
+// maxInputBytes bounds accepted input size so malformed or hostile documents
+// cannot exhaust available memory during decode.
+const maxInputBytes = 64 << 20 // 64 MiB
+
 func Load(r io.Reader) (*Case, error) {
 	var c Case
-	dec := json.NewDecoder(r)
+	lr := io.LimitReader(r, maxInputBytes+1)
+	dec := json.NewDecoder(lr)
 	if err := dec.Decode(&c); err != nil {
 		return nil, fmt.Errorf("parsing case: %w", err)
+	}
+	if n, _ := io.Copy(io.Discard, lr); n > 0 {
+		return nil, fmt.Errorf("case exceeds maximum supported input size (%d bytes)", maxInputBytes)
 	}
 	if c.Schema != SchemaVersion {
 		return nil, fmt.Errorf("unsupported case schema %q (want %s)", c.Schema, SchemaVersion)
@@ -220,6 +228,13 @@ func LoadFile(path string) (*Case, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	fi, serr := f.Stat()
+	if serr != nil {
+		return nil, fmt.Errorf("stat %s: %w", path, serr)
+	}
+	if fi.Size() > maxInputBytes {
+		return nil, fmt.Errorf("%s exceeds maximum supported input size (%d bytes)", path, maxInputBytes)
+	}
 	return Load(f)
 }
 

@@ -1,6 +1,7 @@
 package forensics
 
 import (
+	"sort"
 	"strings"
 	"time"
 )
@@ -72,6 +73,62 @@ func IsMasqueradeName(name string) bool {
 		}
 	}
 	return false
+}
+
+// IsSystemName reports whether a process or file name references a well-known
+// system binary, either exactly or as a prefix imitation. Exact matches are
+// included so that a faithful `svchost.exe` relocated off the system
+// directory is still caught by the custody check.
+func IsSystemName(name string) bool {
+	base := strings.ToLower(stripExt(name))
+	for _, m := range masqueradeNames {
+		if base == m || strings.HasPrefix(base, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// TrustedSystemDir reports whether a path is a standard read-only system
+// location where a system-named binary is a credible, expected artifact. Any
+// other location (temp, user profile, web root, recycle bin) breaks that
+// custody and is treated as suspicious.
+func TrustedSystemDir(path string) bool {
+	if path == "" {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(path))
+	lower = strings.TrimRight(lower, `/\`)
+	// Windows Temp is user-writable and a preferred masquerade drop location;
+	// it must never inherit trust from the C:\Windows tree.
+	if lower == `c:\windows\temp` || strings.HasPrefix(lower, `c:\windows\temp\`) ||
+		strings.HasPrefix(lower, `/windows/temp/`) || strings.HasPrefix(lower, `/windows/temp`) {
+		return false
+	}
+	trusted := []string{
+		`c:\windows\system32`, `c:\windows\syswow64`, `c:\windows`,
+		`c:\windows\system32\drivers`, `c:\windows\system32\inetsrv`,
+		`c:\program files`, `c:\program files (x86)`,
+		`/bin`, `/sbin`, `/usr/bin`, `/usr/sbin`, `/usr/lib`, `/usr/libexec`,
+		`/usr/local/bin`, `/usr/local/sbin`,
+	}
+	for _, dir := range trusted {
+		if lower == dir || strings.HasPrefix(lower, dir+`\`) || strings.HasPrefix(lower, dir+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// MasqueradeSuspicion applies the custody chain to a system-named binary: a
+// name imitating a well-known system process is only reported when it
+// executes from a location a real system binary would never use. Trusted
+// system directories are never flagged; unknown or writable locations are.
+func MasqueradeSuspicion(name, path string) bool {
+	if !IsSystemName(name) {
+		return false
+	}
+	return !TrustedSystemDir(path)
 }
 
 func stripExt(name string) string {
@@ -346,23 +403,26 @@ func BuildTimeline(c *Case) []Timeline {
 	return out
 }
 
+// sortTimeline sorts timeline rows chronologically. RFC3339 UTC strings sort
+// lexically; a stable sort keeps rows with equal timestamps in their original
+// (deterministic) order, and is O(n log n) rather than the previous insertion
+// sort.
 func sortTimeline(t []Timeline) {
-	// RFC3339 UTC strings sort lexicographically; insertion sort keeps it
-	// dependency-free and deterministic.
-	for i := 1; i < len(t); i++ {
-		for j := i; j > 0 && t[j].Timestamp < t[j-1].Timestamp; j-- {
-			t[j], t[j-1] = t[j-1], t[j]
-		}
-	}
+	sort.SliceStable(t, func(i, j int) bool {
+		return t[i].Timestamp < t[j].Timestamp
+	})
 }
 
 // TimelineGap detects the largest quiet window between consecutive timeline
-// rows, an indicator that collection may be incomplete.
+// rows, an indicator that collection may be incomplete. Rows that do not parse
+// are skipped without polluting the window: the gap is measured only between
+// the previously parsed row and the current one.
 func TimelineGap(t []Timeline) (gap time.Duration, gapAt string) {
 	if len(t) < 2 {
 		return 0, ""
 	}
-	var prev time.Time
+	prev := time.Time{}
+	hasPrev := false
 	var max time.Duration
 	var at string
 	for i := range t {
@@ -370,13 +430,14 @@ func TimelineGap(t []Timeline) (gap time.Duration, gapAt string) {
 		if err != nil {
 			continue
 		}
-		if i > 0 {
+		if hasPrev {
 			if d := cur.Sub(prev); d > max {
 				max = d
 				at = cur.UTC().Format(time.RFC3339)
 			}
 		}
 		prev = cur
+		hasPrev = true
 	}
 	return max, at
 }

@@ -6,6 +6,7 @@ package builtin
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -119,7 +120,7 @@ func (r *autorunPersistence) Meta() rules.Meta {
 
 func (r *autorunPersistence) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, a := range forensics.SuspiciousArtifacts(env.Case) {
+	for _, a := range env.SuspiciousArtifacts() {
 		if a.Kind != "autorun" {
 			continue
 		}
@@ -144,7 +145,7 @@ func (r *scheduledTask) Meta() rules.Meta {
 
 func (r *scheduledTask) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, a := range forensics.SuspiciousArtifacts(env.Case) {
+	for _, a := range env.SuspiciousArtifacts() {
 		if a.Kind != "scheduled_task" {
 			continue
 		}
@@ -169,7 +170,7 @@ func (r *serviceInstall) Meta() rules.Meta {
 
 func (r *serviceInstall) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, a := range forensics.SuspiciousArtifacts(env.Case) {
+	for _, a := range env.SuspiciousArtifacts() {
 		if a.Kind != "service" {
 			continue
 		}
@@ -197,7 +198,7 @@ func (r *webShell) Meta() rules.Meta {
 
 func (r *webShell) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, a := range forensics.SuspiciousArtifacts(env.Case) {
+	for _, a := range env.SuspiciousArtifacts() {
 		if a.Kind != "webshell" {
 			continue
 		}
@@ -225,7 +226,7 @@ func (r *suspiciousFiles) Meta() rules.Meta {
 
 func (r *suspiciousFiles) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, f := range forensics.SuspiciousFiles(env.Case) {
+	for _, f := range env.SuspiciousFiles() {
 		ev := env.AddEvidence(models.EvidenceFile, "filesystem", f.Path,
 			f.Name, f.Reason)
 		if env.Events != nil {
@@ -255,7 +256,7 @@ func (r *suspiciousProcesses) Meta() rules.Meta {
 
 func (r *suspiciousProcesses) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, p := range forensics.SuspiciousProcesses(env.Case) {
+	for _, p := range env.SuspiciousProcesses() {
 		ev := env.AddEvidence(models.EvidenceObservation, "memory", p.EvidenceID,
 			p.Name, p.Reason)
 		if env.Events != nil {
@@ -283,19 +284,25 @@ func (r *masqueradeBinary) Meta() rules.Meta {
 func (r *masqueradeBinary) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
 	seen := map[string][]string{}
-	for _, p := range env.Case.Processes {
-		if forensics.IsMasqueradeName(p.Name) {
+	for _, p := range env.SuspiciousProcesses() {
+		if forensics.MasqueradeSuspicion(p.Name, p.Path) {
 			seen[p.Name] = append(seen[p.Name], "process:"+itoa(p.PID))
 		}
 	}
-	for _, f := range forensics.SuspiciousFiles(env.Case) {
-		if forensics.IsMasqueradeName(f.Name) {
+	for _, f := range env.SuspiciousFiles() {
+		if forensics.MasqueradeSuspicion(f.Name, f.Path) {
 			seen[f.Name] = append(seen[f.Name], "file:"+f.Path)
 		}
 	}
-	for name, refs := range seen {
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		refs := seen[name]
 		ev := env.AddEvidence(models.EvidenceObservation, "case", "masquerade",
-			name, "name imitates a system binary")
+			name, "system-named binary outside a trusted system directory")
 		sink.Add(newFinding(r.Meta(), env, refs,
 			map[string]string{"name": name}, ev))
 	}
@@ -344,10 +351,16 @@ func (r *logonAnomaly) Meta() rules.Meta {
 func (r *logonAnomaly) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
 	byCategory := map[string][]forensics.LogAnomaly{}
-	for _, an := range forensics.LogAnomalies(env.Case) {
+	for _, an := range env.LogAnomalies() {
 		byCategory[an.Category] = append(byCategory[an.Category], an)
 	}
-	for category, list := range byCategory {
+	categories := make([]string, 0, len(byCategory))
+	for category := range byCategory {
+		categories = append(categories, category)
+	}
+	sort.Strings(categories)
+	for _, category := range categories {
+		list := byCategory[category]
 		refs := make([]string, 0, len(list))
 		for _, an := range list {
 			refs = append(refs, "log:"+an.Evidence)
@@ -379,7 +392,7 @@ func (r *networkIndicator) Meta() rules.Meta {
 
 func (r *networkIndicator) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, in := range forensics.ExtractIndicators(env.Case) {
+	for _, in := range env.Indicators() {
 		if in.Kind != "ip" && in.Kind != "domain" && in.Kind != "sha256" {
 			continue
 		}
@@ -409,7 +422,7 @@ func (r *hostsTampering) Meta() rules.Meta {
 
 func (r *hostsTampering) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	for _, a := range forensics.SuspiciousArtifacts(env.Case) {
+	for _, a := range env.SuspiciousArtifacts() {
 		if a.Kind != "hosts_file" {
 			continue
 		}
@@ -437,7 +450,7 @@ func (r *timelineGap) Meta() rules.Meta {
 
 func (r *timelineGap) Run(_ context.Context, envAny any, sink *rules.Sink) error {
 	env := envAny.(*analysis.Env)
-	tl := forensics.BuildTimeline(env.Case)
+	tl := env.Timeline()
 	gap, at := forensics.TimelineGap(tl)
 	const threshold = 12 * time.Hour
 	if gap < threshold {
