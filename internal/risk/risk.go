@@ -6,6 +6,7 @@ package risk
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/QYVORA/qyvora-timbuktu/pkg/models"
 )
@@ -43,17 +44,30 @@ func Level(score int) string {
 	}
 }
 
-// ExposureFor returns the per-category exposure heuristic (0..5): public
-// attack surface by default, raised for storage/IAM, lowered for
-// informatic-resource issues.
+// ExposureFor returns the per-category exposure heuristic (0..5): how much of
+// the category's attack surface is reachable and consequential. The default
+// (2) applies to informatic-resource issues; categories with direct external
+// attack surface or lasting credential/persistence impact score higher. This
+// mapping is shared across the QYVORA frameworks and is tuned per discipline.
 func ExposureFor(category string) int {
-	switch category {
-	case "iam", "storage":
+	switch strings.ToLower(category) {
+	// Cloud security posture.
+	case "iam", "storage", "secrets", "credentials":
 		return 4
-	case "network", "containers":
+	case "network", "containers", "misconfig", "infrastructure":
 		return 3
-	case "secrets":
+	// Identity and credential security.
+	case "authentication", "privilege", "attack-path", "lifecycle", "authorization":
+		return 4
+	// DFIR and malware analysis.
+	case "command-and-control", "persistence", "exfiltration":
 		return 5
+	case "execution", "intrusion", "memory", "payload", "behavior", "armoring":
+		return 4
+	case "obfuscation", "filesystem", "signing", "authenticode", "transport", "permissions":
+		return 3
+	case "timeline", "logs", "indicators", "ioc", "integrity", "static", "crypto", "data", "platform":
+		return 2
 	default:
 		return 2
 	}

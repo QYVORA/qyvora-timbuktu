@@ -69,6 +69,7 @@ type Stream struct {
 	mu          sync.Mutex
 	w           io.Writer
 	executionID string
+	count       int
 }
 
 // NewStream returns a stream bound to a freshly generated execution id.
@@ -84,6 +85,16 @@ func (s *Stream) ExecutionID() string {
 	return s.executionID
 }
 
+// Count returns the number of events emitted by this stream.
+func (s *Stream) Count() int {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.count
+}
+
 // Emit writes one event. Data may be nil.
 func (s *Stream) Emit(level, name string, data map[string]any) {
 	if s == nil || s.w == nil {
@@ -91,6 +102,7 @@ func (s *Stream) Emit(level, name string, data map[string]any) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.count++
 	ev := Event{
 		SchemaVersion: SchemaVersion,
 		Timestamp:     time.Now().UTC(),

@@ -1,7 +1,8 @@
 // Package pipeline runs a staged assessment. Each stage is a named unit of
 // work that receives a shared step context and may emit events, evidence and
 // findings. The engine emits stage lifecycle events and aborts on the first
-// stage failure.
+// stage failure. A per-run cache on the step lets stages and rules share
+// parsed models instead of re-reading the same input repeatedly.
 package pipeline
 
 import (
@@ -20,6 +21,28 @@ type Step struct {
 	Events   *events.Stream
 	Evidence *evidence.Store
 	Result   *models.Result
+
+	cache map[string]any
+}
+
+// Cached returns a lazily computed, per-run value shared by all stages and
+// rules. The loader runs at most once per step; later callers reuse the value.
+func (s *Step) Cached(key string, load func() (any, error)) (any, error) {
+	if s == nil {
+		return nil, fmt.Errorf("assessment step is nil")
+	}
+	if s.cache == nil {
+		s.cache = map[string]any{}
+	}
+	if v, ok := s.cache[key]; ok {
+		return v, nil
+	}
+	v, err := load()
+	if err != nil {
+		return nil, err
+	}
+	s.cache[key] = v
+	return v, nil
 }
 
 // Stage is one unit of pipeline work.

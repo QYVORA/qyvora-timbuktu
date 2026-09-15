@@ -7,6 +7,8 @@ package analysis
 
 import (
 	"context"
+	"sort"
+	"sync"
 
 	"github.com/QYVORA/qyvora-timbuktu/internal/errors"
 	"github.com/QYVORA/qyvora-timbuktu/internal/events"
@@ -24,6 +26,50 @@ type Env struct {
 	Events *events.Stream
 	Store  *evidence.Store
 	Config map[string]any
+
+	scanMu sync.Mutex
+	scans  map[string]any
+}
+
+// scan memoizes a case scan across the concurrent rules that share this Env,
+// so a full-filesystem or full-process scan runs once per assessment instead
+// of once per consuming rule and per stage.
+func (e *Env) scan(key string, fn func() any) any {
+	e.scanMu.Lock()
+	defer e.scanMu.Unlock()
+	if e.scans == nil {
+		e.scans = map[string]any{}
+	}
+	if v, ok := e.scans[key]; ok {
+		return v
+	}
+	v := fn()
+	e.scans[key] = v
+	return v
+}
+
+func (e *Env) SuspiciousArtifacts() []forensics.Artifact {
+	return e.scan("artifacts", func() any { return forensics.SuspiciousArtifacts(e.Case) }).([]forensics.Artifact)
+}
+
+func (e *Env) SuspiciousFiles() []forensics.FileSuspicion {
+	return e.scan("files", func() any { return forensics.SuspiciousFiles(e.Case) }).([]forensics.FileSuspicion)
+}
+
+func (e *Env) SuspiciousProcesses() []forensics.ProcessSuspicion {
+	return e.scan("processes", func() any { return forensics.SuspiciousProcesses(e.Case) }).([]forensics.ProcessSuspicion)
+}
+
+func (e *Env) LogAnomalies() []forensics.LogAnomaly {
+	return e.scan("logs", func() any { return forensics.LogAnomalies(e.Case) }).([]forensics.LogAnomaly)
+}
+
+func (e *Env) Indicators() []forensics.Indicator {
+	return e.scan("indicators", func() any { return forensics.ExtractIndicators(e.Case) }).([]forensics.Indicator)
+}
+
+func (e *Env) Timeline() []forensics.Timeline {
+	return e.scan("timeline", func() any { return forensics.BuildTimeline(e.Case) }).([]forensics.Timeline)
 }
 
 // AddEvidence records an observation backing a finding, hashed and stored.
@@ -177,7 +223,7 @@ func Stages(reg *rules.Registry, cfg map[string]any, maxAssets int) []pipeline.S
 					Config: cfg,
 				}
 				sink := rules.NewSink()
-				if err := reg.Run(ctx, env, sink); err != nil {
+				if err := reg.RunProfile(ctx, env, sink, profileOf(cfg)); err != nil {
 					return err
 				}
 				for _, f := range sink.List() {
@@ -203,6 +249,9 @@ func Stages(reg *rules.Registry, cfg map[string]any, maxAssets int) []pipeline.S
 				step.Result.Score = score
 				step.Result.Level = level
 				step.Result.Evidence = step.Evidence.List()
+				sort.Slice(step.Result.Evidence, func(i, j int) bool {
+					return step.Result.Evidence[i].Hash < step.Result.Evidence[j].Hash
+				})
 				if step.Events != nil {
 					step.Events.Info(events.RiskCalculated, map[string]any{
 						"score": score, "level": level, "findings": len(step.Result.Findings),
@@ -238,15 +287,33 @@ func currentCase(step *pipeline.Step) (*forensics.Case, error) {
 	if step == nil || step.Target == nil {
 		return nil, errors.NewExitError(1, "assessment requires a case or simulation target")
 	}
-	if step.Sim {
-		return forensics.Simulate(forensics.SimulationOptions{}), nil
-	}
-	if step.Target.Type != models.TargetSnapshot {
-		return nil, errors.NewExitError(1, "unsupported target: live acquisition is not implemented; provide a case file")
-	}
-	cs, err := forensics.LoadFile(step.Target.Value)
+	v, err := step.Cached("input:forensics", func() (any, error) {
+		if step.Sim {
+			return forensics.Simulate(forensics.SimulationOptions{}), nil
+		}
+		if step.Target.Type != models.TargetSnapshot {
+			return nil, errors.NewExitError(1, "unsupported target: live acquisition is not implemented; provide a case file")
+		}
+		cs, err := forensics.LoadFile(step.Target.Value)
+		if err != nil {
+			return nil, errors.WrapExitError(1, "loading case", err)
+		}
+		return cs, nil
+	})
 	if err != nil {
-		return nil, errors.WrapExitError(1, "loading case", err)
+		return nil, err
 	}
-	return cs, nil
+	return v.(*forensics.Case), nil
+}
+
+// profileOf returns the named assessment profile, defaulting to standard
+// when the configuration does not select one.
+func profileOf(cfg map[string]any) string {
+	if p, ok := cfg["profile"].(string); ok && p != "" {
+		return p
+	}
+	// No profile selected falls through to the full rule set so pipeline
+	// invocations without an explicit profile behave exactly as before the
+	// profile filter existed. The CLI always resolves an explicit profile.
+	return ""
 }

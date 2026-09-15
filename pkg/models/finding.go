@@ -3,6 +3,7 @@ package models
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -74,17 +75,32 @@ func (f *Finding) Fingerprint() string {
 	return hex.EncodeToString(sum[:])
 }
 
-// RedactSecrets strips known secret-shaped attribute values before a finding
-// is written to any output surface. Affects data, not structural fields.
+// RedactSecrets strips secret-shaped values from a finding before it is
+// written to any output surface. It is field-scoped, not blanket: structural
+// fields (rule, category, description, recommendation, objects, references)
+// are preserved verbatim, and only attribute values and evidence payloads that
+// look like credential material are replaced. Keeping non-secret evidence
+// readable means reports stay useful for triage while values never leak.
 func (f *Finding) RedactSecrets() {
 	for k, v := range f.Attributes {
-		if looksSecret(k) {
+		if looksSecret(k) || looksSecretValue(v) {
 			f.Attributes[k] = "<redacted>"
 		}
-		_ = v
 	}
 	for i := range f.Evidence {
-		f.Evidence[i].Data = "<redacted>"
+		if looksSecretValue(f.Evidence[i].Data) {
+			f.Evidence[i].Data = "<redacted>"
+		}
+	}
+}
+
+// RedactSecretData redacts secret-shaped payloads from an evidence slice in
+// place, so result-level evidence lists are also safe to persist.
+func RedactSecretData(list []Evidence) {
+	for i := range list {
+		if looksSecretValue(list[i].Data) {
+			list[i].Data = "<redacted>"
+		}
 	}
 }
 
@@ -98,3 +114,32 @@ func looksSecret(k string) bool {
 	}
 	return strings.Contains(l, "secret") || strings.Contains(l, "password")
 }
+
+// looksSecretValue classifies value-shaped credential material: stable secret
+// prefixes, standard private-key markers, and inline key=value assignments
+// whose value is a known credential class. High-entropy guessing is
+// deliberately avoided so evidence quality is not destroyed by false positives.
+func looksSecretValue(s string) bool {
+	if s == "" || s == "<redacted>" {
+		return false
+	}
+	l := strings.ToLower(strings.TrimSpace(s))
+	for _, p := range []string{
+		"-----begin", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
+		"glpat-", "sk_live_", "pk_live_", "sk_test_", "pk_test_", "xoxb-",
+		"xoxp-", "xoxa-", "ya29.", "eyj",
+	} {
+		if strings.HasPrefix(l, p) {
+			return true
+		}
+	}
+	if secretValueRx.MatchString(s) {
+		return true
+	}
+	return false
+}
+
+// secretValueRx detects credential-shaped values wherever they appear in a
+// payload: AWS access key ids, GitHub tokens, JWT headers, private key blocks,
+// Google API keys, and SECRET=long-value assignments.
+var secretValueRx = regexp.MustCompile(`(?is)\bAKIA[0-9A-Z]{16}\b|\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b|-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}|\bAIza[0-9A-Za-z_-]{35}|(?i)aws[_-]?secret[_-]?access[_-]?key\s*[=:]\s*\S+|\b(?:password|passwd|secret|token|client[_-]?secret|api[_-]?key|access[_-]?key)\s*[=:]\s*[\"']?[A-Za-z0-9._\-+/=]{14,}`)

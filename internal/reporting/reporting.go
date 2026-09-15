@@ -81,7 +81,7 @@ func render(format string, res *models.Result) ([]byte, error) {
 
 func renderMarkdown(res *models.Result) []byte {
 	var b strings.Builder
-	b.WriteString("# Cloud Security Report\n\n")
+	b.WriteString("# " + reportTitle(res.Framework) + "\n\n")
 	if res.Target != nil {
 		b.WriteString("- Target: `" + res.Target.TypedName() + "`\n")
 	}
@@ -137,7 +137,27 @@ func redactResult(res *models.Result) *models.Result {
 	}
 	cp.Evidence = make([]models.Evidence, len(res.Evidence))
 	copy(cp.Evidence, res.Evidence)
+	models.RedactSecretData(cp.Evidence)
 	return &cp
+}
+
+// reportTitle returns the report heading for a framework. Reports are generic
+// across the QYVORA ecosystem; the title follows the framework's discipline.
+func reportTitle(framework string) string {
+	switch strings.ToLower(framework) {
+	case "imhotep":
+		return "Cloud Security Report"
+	case "amanirenas":
+		return "Mobile Security Assessment Report"
+	case "sundiata":
+		return "Identity and Credential Security Assessment Report"
+	case "timbuktu":
+		return "Digital Forensics and Incident Response Report"
+	case "kush":
+		return "Malware Analysis Report"
+	default:
+		return strings.ToUpper(framework) + " Assessment Report"
+	}
 }
 
 func escapeHTML(s string) string {

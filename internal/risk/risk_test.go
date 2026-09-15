@@ -61,3 +61,21 @@ func TestLevelBuckets(t *testing.T) {
 		}
 	}
 }
+
+func TestExposureForDomainCoverage(t *testing.T) {
+	if risk.ExposureFor("command-and-control") != 5 {
+		t.Error("c2 exposure should rank 5")
+	}
+	if risk.ExposureFor("iam") != 4 {
+		t.Error("iam exposure should rank 4")
+	}
+	if risk.ExposureFor("network") != 3 {
+		t.Error("network exposure should rank 3")
+	}
+	if risk.ExposureFor("timeline") != 2 {
+		t.Error("timeline exposure should rank 2")
+	}
+	if risk.ExposureFor("unknown-category") != 2 {
+		t.Error("unknown categories must fall back to 2")
+	}
+}

@@ -49,7 +49,7 @@ func TestFindingFingerprintIsStable(t *testing.T) {
 func TestRedactSecrets(t *testing.T) {
 	f := models.Finding{
 		Attributes: map[string]string{"token": "supersecret", "region": "us-east-1"},
-		Evidence:   []models.Evidence{{Data: "k=v"}},
+		Evidence:   []models.Evidence{{Data: "k=v"}, {Data: "aws_access_key_id=AKIAIOSFODNN7EXAMPLE"}},
 	}
 	f.RedactSecrets()
 	if f.Attributes["token"] != "<redacted>" {
@@ -58,8 +58,25 @@ func TestRedactSecrets(t *testing.T) {
 	if f.Attributes["region"] != "us-east-1" {
 		t.Error("non-secret attribute must be preserved")
 	}
-	if f.Evidence[0].Data != "<redacted>" {
-		t.Error("evidence data not redacted")
+	if f.Evidence[0].Data != "k=v" {
+		t.Error("non-secret evidence payload must be preserved")
+	}
+	if f.Evidence[1].Data != "<redacted>" {
+		t.Error("secret-shaped evidence payload must be redacted")
+	}
+}
+
+func TestRedactSecretData(t *testing.T) {
+	list := []models.Evidence{
+		{Data: "client_secret=wJalrXUtnFEMI_K7MDENG+bPxRfiCYEXAMPLEKEY"},
+		{Data: "line 12: allow inbound from 0.0.0.0/0"},
+	}
+	models.RedactSecretData(list)
+	if list[0].Data != "<redacted>" {
+		t.Error("secret value must be redacted from evidence list")
+	}
+	if list[1].Data == "<redacted>" {
+		t.Error("non-secret evidence must survive list redaction")
 	}
 }
 

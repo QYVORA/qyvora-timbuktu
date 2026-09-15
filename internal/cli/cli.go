@@ -236,7 +236,10 @@ func (a *App) commandRules() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			reg := a.registry()
+			reg, err := a.registry()
+			if err != nil {
+				return pexit.WrapExitError(CodeRuntime, "loading rules", err)
+			}
 			if p.Format() == output.FormatTerminal {
 				rows := make([][]string, 0, reg.Len())
 				for _, m := range reg.Metas() {
@@ -285,6 +288,7 @@ type assessOpts struct {
 	Profile   string
 	ReportDir string
 	NoReport  bool
+	Quiet     bool
 }
 
 func (a *App) commandAssess() *cobra.Command {
@@ -297,6 +301,7 @@ func (a *App) commandAssess() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			opts.Quiet, _ = cmd.Root().PersistentFlags().GetBool("quiet")
 			return a.runAssess(cmd.Context(), p, opts)
 		},
 	}
@@ -318,7 +323,6 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 	if !config.IsValidProfile(profile) {
 		return pexit.NewExitError(CodeUsage, "unknown profile "+profile)
 	}
-	profile, _ = config.Profile(cfgLocal)
 
 	t, err := a.selectTarget(opts)
 	if err != nil {
@@ -343,9 +347,12 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 	}
 	store := evidence.New(filepath.Join(repDir, "evidence.json"))
 
-	reg := a.registry()
+	reg, err := a.registry()
+	if err != nil {
+		return pexit.WrapExitError(CodeRuntime, "registering rules", err)
+	}
 	assets := config.MaxAssets(cfgLocal)
-	stages := analysis.Stages(reg, flagMap(cfgLocal), assets)
+	stages := analysis.Stages(reg, flagMap(cfgLocal, profile), assets)
 
 	step := &pipeline.Step{
 		Target:   t,
@@ -376,15 +383,19 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 	}
 
 	step.Result.CompletedAt = models.Now()
-	step.Result.Events = counter.n
-
-	// Render results to stdout in the requested format; redaction happens at
-	// the render surface so values are safe.
-	redactForOutput := *step.Result
-	for i := range redactForOutput.Findings {
-		redactForOutput.Findings[i].RedactSecrets()
+	step.Result.Events = stream.Count()
+	if err := store.Save(); err != nil {
+		return pexit.WrapExitError(CodeRuntime, "writing evidence", err)
 	}
-	p.Print(&redactForOutput)
+
+	// Render results to stdout in the requested format. Redaction is applied
+	// to a deep copy at the render surface so the canonical run result is
+	// never mutated; non-secret evidence stays readable for triage.
+	redactForOutput := cloneResult(step.Result)
+	models.RedactSecretData(redactForOutput.Evidence)
+	if !(opts.Quiet && p.Format() == output.FormatTerminal) {
+		p.Print(&redactForOutput)
+	}
 
 	// Persistent report artifact (unless suppressed). Reports are redacted.
 	persistResult(step.Result, repDir)
@@ -666,7 +677,7 @@ func (a *App) commandConsole() *cobra.Command {
 				},
 				Printer:  a.Printer,
 				Manager:  a.Manager,
-				Registry: a.registry(),
+				Registry: mustRegistry(a.registry()),
 				Version:  version.String(),
 				Out:      a.Stdout,
 				ErrOut:   a.Stderr,
@@ -701,15 +712,17 @@ func (a *App) commandCompletion() *cobra.Command {
 	}
 }
 
-func (a *App) registry() *rules.Registry {
+func (a *App) registry() (*rules.Registry, error) {
 	reg := rules.NewRegistry()
-	reg.RegisterAll(builtin.All()...)
-	return reg
+	if err := reg.RegisterAll(builtin.All()...); err != nil {
+		return nil, err
+	}
+	return reg, nil
 }
 
-func flagMap(v *viper.Viper) map[string]any {
+func flagMap(v *viper.Viper, profile string) map[string]any {
 	return map[string]any{
-		"profile":             v.GetString("profile"),
+		"profile":             profile,
 		"analysis.max_assets": config.MaxAssets(v),
 	}
 }
@@ -741,16 +754,57 @@ func persistResult(res *models.Result, dir string) {
 	if dir == "" {
 		return
 	}
-	cp := *res
+	cp := cloneResult(res)
 	for i := range cp.Findings {
 		cp.Findings[i].RedactSecrets()
 	}
+	models.RedactSecretData(cp.Evidence)
 	data, err := json.MarshalIndent(&cp, "", "  ")
 	if err != nil {
 		return
 	}
 	_ = os.MkdirAll(dir, 0o700)
 	_ = os.WriteFile(filepath.Join(dir, "result.json"), data, 0o600)
+}
+
+// cloneResult returns a deep copy of a result so render-surface redaction can
+// never leak or corrupt the canonical run state.
+func cloneResult(res *models.Result) models.Result {
+	cp := *res
+	if res.Target != nil {
+		t := *res.Target
+		cp.Target = &t
+	}
+	cp.Findings = make([]models.Finding, len(res.Findings))
+	for i := range res.Findings {
+		cp.Findings[i] = cloneFinding(&res.Findings[i])
+	}
+	cp.Evidence = make([]models.Evidence, len(res.Evidence))
+	copy(cp.Evidence, res.Evidence)
+	return cp
+}
+
+func cloneFinding(f *models.Finding) models.Finding {
+	c := *f
+	c.Objects = append([]string(nil), f.Objects...)
+	c.References = append([]string(nil), f.References...)
+	if f.Evidence != nil {
+		c.Evidence = append([]models.Evidence(nil), f.Evidence...)
+	}
+	c.Attributes = make(map[string]string, len(f.Attributes))
+	for k, v := range f.Attributes {
+		c.Attributes[k] = v
+	}
+	return c
+}
+
+// mustRegistry returns the built-in rule registry, panicking only on a
+// defective static rule set (duplicate IDs are a build-time bug).
+func mustRegistry(reg *rules.Registry, err error) *rules.Registry {
+	if err != nil {
+		panic(err)
+	}
+	return reg
 }
 
 func loadLatestResult(dir string) (*models.Result, error) {
