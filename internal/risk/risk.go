@@ -98,24 +98,48 @@ func ScoreFor(f *models.Finding) Risk {
 	}
 }
 
-// Assess computes the target-level risk from a collection of findings.
+// Assess computes the target-level risk from a collection of findings using a
+// worst-case-aware, monotonic aggregation:
+//
+//   - the aggregate is at least the highest-scoring active finding, so a
+//     single critical finding is never diluted by many harmless ones, and
+//   - every additional active finding only raises or holds the score, never
+//     lowers it.
+//
+// A modest cumulative term reflects homogeneity: each additional active
+// finding in the same category escalates that category's exposure by one
+// point (capped at MaxScore), so a concentrated set of findings widens the
+// attack surface without outranking the worst individual finding alone if
+// that would dominate. Iteration order has no effect: the result is the
+// maximum over categories of (best score in category + count - 1).
 func (a *Assessor) Assess(_ context.Context, findings []*models.Finding) (int, string) {
-	var total float64
-	var maxWeight float64
+	perCategory := map[string]int{}
+	bestInCategory := map[string]int{}
+	var active int
 	for _, f := range findings {
-		if f == nil {
+		if f == nil || f.Status == models.StatusFalsePositive || f.Status == models.StatusResolved {
 			continue
 		}
-		if f.Status == models.StatusFalsePositive || f.Status == models.StatusResolved {
-			continue
+		cat := strings.ToLower(f.Category)
+		if cat == "" {
+			cat = "unknown"
 		}
-		total += float64(ScoreFor(f).Score)
-		maxWeight += float64(MaxScore)
+		perCategory[cat]++
+		if s := ScoreFor(f).Score; s > bestInCategory[cat] {
+			bestInCategory[cat] = s
+		}
+		active++
 	}
-	if maxWeight == 0 {
+	if active == 0 {
 		return 0, Level(0)
 	}
-	score := int(total / maxWeight * MaxScore)
+	score := 0
+	for cat, count := range perCategory {
+		term := bestInCategory[cat] + count - 1
+		if term > score {
+			score = term
+		}
+	}
 	if score > MaxScore {
 		score = MaxScore
 	}

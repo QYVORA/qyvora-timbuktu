@@ -64,7 +64,6 @@ func Build() Document {
 		EventVerbs: []string{
 			events.ScanStarted, events.ScanCompleted, events.StageStarted,
 			events.StageCompleted, events.FindingDiscovered,
-			events.EvidenceCollected, events.SourceDetected,
 			events.EvidenceRegistered, events.IntegrityVerified,
 			events.ArtifactIdentified, events.FileSystemAnalyzed,
 			events.MemoryAnalyzed, events.LogAnalyzed,

@@ -43,7 +43,7 @@ func TestSimulationIsAlwaysReady(t *testing.T) {
 func TestProviderTargetRefused(t *testing.T) {
 	var v validation.Validator
 	p := v.Validate(&models.Target{
-		ID: "t", Type: models.TargetAWS,
+		ID: "t", Type: models.TargetProvider,
 	}, nil)
 	if p.Ready {
 		t.Fatal("provider target must not be ready (live collection not implemented)")

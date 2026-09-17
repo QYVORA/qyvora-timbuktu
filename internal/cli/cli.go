@@ -33,6 +33,7 @@ import (
 	"github.com/QYVORA/qyvora-timbuktu/internal/reporting"
 	"github.com/QYVORA/qyvora-timbuktu/internal/rules"
 	"github.com/QYVORA/qyvora-timbuktu/internal/rules/builtin"
+	"github.com/QYVORA/qyvora-timbuktu/internal/safety"
 	"github.com/QYVORA/qyvora-timbuktu/internal/selfupdate"
 	"github.com/QYVORA/qyvora-timbuktu/internal/target"
 	"github.com/QYVORA/qyvora-timbuktu/internal/validation"
@@ -72,6 +73,31 @@ func newApp() (*App, error) {
 	}, nil
 }
 
+// cobraUsageError classifies cobra's own usage-class errors (unknown command,
+// unknown flag, bad positional args) so Execute returns exit code 2 rather than
+// the default runtime code 1.
+func cobraUsageError(err error) error {
+	if err == nil {
+		return nil
+	}
+	// Already an explicit usage ExitError: leave untouched.
+	var ee *pexit.ExitError
+	if errors.As(err, &ee) && ee.Code == CodeUsage {
+		return err
+	}
+	msg := err.Error()
+	switch {
+	case strings.HasPrefix(msg, "unknown command"),
+		strings.HasPrefix(msg, "unknown flag"),
+		strings.HasPrefix(msg, "unknown shorthand flag"),
+		strings.Contains(msg, "requires a subcommand"),
+		strings.HasPrefix(msg, "accepts "), // cobra arg validation failures
+		strings.HasPrefix(msg, "invalid argument"):
+		return pexit.NewExitError(CodeUsage, msg)
+	}
+	return err
+}
+
 // Execute runs the CLI and returns the process exit code.
 func Execute() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -84,6 +110,7 @@ func Execute() int {
 	cmd := app.rootCommand()
 	cmd.SetContext(ctx)
 	if err := cmd.Execute(); err != nil {
+		err = cobraUsageError(err)
 		fmt.Fprintln(os.Stderr, err)
 		var ee *pexit.ExitError
 		if errors.As(err, &ee) {
@@ -138,6 +165,9 @@ func (a *App) rootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return pexit.NewExitError(CodeUsage, err.Error())
+	})
 	pf := root.PersistentFlags()
 	pf.StringVarP(&format, "output", "o", "", "output format: terminal, json, yaml, markdown, html")
 	pf.BoolVar(&noColor, "no-color", false, "disable ANSI color (NO_COLOR is also honored)")
@@ -360,7 +390,7 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 		Events:   stream,
 		Evidence: store,
 		Result: &models.Result{
-			ID:        models.NewID("run"),
+			ID:        stream.ExecutionID(),
 			Framework: version.Framework,
 			Target:    t,
 			Profile:   profile,
@@ -453,10 +483,21 @@ func (a *App) selectTarget(opts assessOpts) (*models.Target, error) {
 		return nil, pexit.NewExitError(CodeUsage, "no target selected: use --sim, --case, or `target add`")
 	}
 	if cur.Type.IsProvider() {
-		return nil, pexit.NewExitError(CodeUsage,
-			"live acquisition is not implemented; provide a case file instead")
+		return nil, refuseLive(safety.OpLiveAcquisition,
+			"provide an offline case file instead")
 	}
 	return cur, nil
+}
+
+// refuseLive derives the honest refusal for an unimplemented live operation
+// from the safety registry, keeping the capability contract single-sourced
+// and the safety model reachable from the CLI.
+func refuseLive(op safety.OperationMetadata, offlineHint string) error {
+	if op.Implemented() {
+		return nil
+	}
+	return pexit.NewExitError(CodeUsage,
+		fmt.Sprintf("%s is not implemented (safety op %s); %s", op.Name, op.ID, offlineHint))
 }
 
 func (a *App) commandTarget() *cobra.Command {
@@ -502,7 +543,7 @@ func (a *App) commandTarget() *cobra.Command {
 				t = &models.Target{Name: "simulation", Type: models.TargetSimulation, Value: "simulation",
 					Auth: models.Authorization{Granted: true, Scope: "offline"}}
 			default:
-				return pexit.NewExitError(CodeUsage, "target type must be snapshot or sim; live acquisition is not implemented")
+				return pexit.NewExitError(CodeUsage, "target type must be snapshot or sim; "+safety.OpLiveAcquisition.Name+" is not implemented")
 			}
 			if err := a.Manager.Set(t); err != nil {
 				if errors.Is(err, target.ErrUnauthorizedTarget) {

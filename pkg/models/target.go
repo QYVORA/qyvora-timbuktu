@@ -2,17 +2,16 @@ package models
 
 import "time"
 
-// TargetType distinguishes the kind of cloud assessment target.
+// TargetType distinguishes the kind of assessment target. The model is
+// domain-neutral: concrete provider naming is domain data carried in Value.
 type TargetType string
 
 const (
-	// TargetAWS identifies an Amazon Web Services account/scope.
-	TargetAWS TargetType = "aws"
-	// TargetAzure identifies a Microsoft Azure subscription/tenant scope.
-	TargetAzure TargetType = "azure"
-	// TargetGCP identifies a Google Cloud project scope.
-	TargetGCP TargetType = "gcp"
-	// TargetSnapshot identifies an offline cloud snapshot (JSON file) to analyze.
+	// TargetProvider identifies a live data source that requires collection.
+	// Concrete provider identity (aws/azure/gcp/device/host) belongs in Value.
+	TargetProvider TargetType = "provider"
+	// TargetSnapshot identifies an offline analysis file (snapshot, case,
+	// directory, app profile or sample document) to analyze.
 	TargetSnapshot TargetType = "snapshot"
 	// TargetSimulation is the built-in deterministic simulation target.
 	TargetSimulation TargetType = "simulation"
@@ -21,7 +20,7 @@ const (
 // ParseTargetType converts a case-insensitive type string.
 func ParseTargetType(s string) TargetType {
 	switch TargetType(s) {
-	case TargetAWS, TargetAzure, TargetGCP, TargetSnapshot, TargetSimulation:
+	case TargetProvider, TargetSnapshot, TargetSimulation:
 		return TargetType(s)
 	default:
 		return TargetSnapshot
@@ -31,15 +30,15 @@ func ParseTargetType(s string) TargetType {
 // Valid reports whether the target type is a known provider or offline scope.
 func (t TargetType) Valid() bool {
 	switch t {
-	case TargetAWS, TargetAzure, TargetGCP, TargetSnapshot, TargetSimulation:
+	case TargetProvider, TargetSnapshot, TargetSimulation:
 		return true
 	}
 	return false
 }
 
-// IsProvider reports whether the type names a live cloud provider.
+// IsProvider reports whether the type names a live collection source.
 func (t TargetType) IsProvider() bool {
-	return t == TargetAWS || t == TargetAzure || t == TargetGCP
+	return t == TargetProvider
 }
 
 // Authorization records the explicit consent state of a target. Live provider
@@ -57,7 +56,7 @@ type Target struct {
 	ID        string        `json:"id"`
 	Name      string        `json:"name,omitempty"`
 	Type      TargetType    `json:"type"`
-	Value     string        `json:"value"` // account/subscription/project id or snapshot path
+	Value     string        `json:"value"` // provider identity or offline file path
 	Profile   string        `json:"profile,omitempty"`
 	Auth      Authorization `json:"authorization"`
 	CreatedAt time.Time     `json:"created_at"`

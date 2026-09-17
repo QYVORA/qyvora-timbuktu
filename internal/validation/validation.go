@@ -56,7 +56,7 @@ func (v *Validator) Validate(t *models.Target, pathExists func(string) bool) Pla
 		} else {
 			plan.Checks = append(plan.Checks, Check{ID: "snapshot.provided", Pass: true, Message: "built-in simulation dataset"})
 		}
-	case models.TargetAWS, models.TargetAzure, models.TargetGCP:
+	case models.TargetProvider:
 		plan.Checks = append(plan.Checks, Check{
 			ID: "provider.known", Pass: true, Message: string(t.Type),
 		})

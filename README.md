@@ -49,7 +49,7 @@ builds once the first verifiable release exists.
 Full assessment, no input required, deterministic:
 
 ```sh
-timbuktu assess --sim       # risk 62/100 (high)
+timbuktu assess --sim       # risk 100/100 (critical)
 ```
 
 Generate a sample forensic case and assess it:

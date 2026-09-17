@@ -85,7 +85,7 @@ func TestTargetAuthorizedByScope(t *testing.T) {
 	if !off.Authorized() {
 		t.Error("offline target should be authorized")
 	}
-	live := models.Target{Type: models.TargetAWS, Auth: models.Authorization{Granted: false}}
+	live := models.Target{Type: models.TargetProvider, Auth: models.Authorization{Granted: false}}
 	if live.Authorized() {
 		t.Error("provider target without auth must not be authorized")
 	}
@@ -101,7 +101,7 @@ func TestResultOffline(t *testing.T) {
 	if r := (models.Result{Target: &models.Target{Type: models.TargetSnapshot}}); !r.Offline() {
 		t.Error("snapshot result should be offline")
 	}
-	if r := (models.Result{Target: &models.Target{Type: models.TargetAWS}}); r.Offline() {
+	if r := (models.Result{Target: &models.Target{Type: models.TargetProvider}}); r.Offline() {
 		t.Error("provider result must not be offline")
 	}
 }

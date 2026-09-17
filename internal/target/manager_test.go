@@ -53,7 +53,7 @@ func TestOfflineTargetAutoAuthorized(t *testing.T) {
 func TestProviderTargetRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	m := target.NewManager(path)
-	err := m.Set(&models.Target{Name: "aws", Type: models.TargetAWS})
+	err := m.Set(&models.Target{Name: "aws", Type: models.TargetProvider})
 	if err == nil {
 		t.Fatal("provider target should be refused")
 	}
