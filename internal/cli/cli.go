@@ -647,6 +647,29 @@ func (a *App) commandEvidence() *cobra.Command {
 	}
 }
 
+// releaseArtifactName maps a Go target onto the exact release asset
+// name. It is a package-level function rather than an inline closure
+// so that release_artifact_name_test.go can pin the naming contract,
+// which is shared with the release workflow and with install.sh.
+//
+// Two details are easy to get wrong and both were wrong here before:
+// macOS is published as "macos", never "darwin"; and Android/Termux
+// is published as "android", which is exactly what runtime.GOOS
+// already reports for a GOOS=android build. The updater installs the
+// downloaded bytes as the executable directly, so this name must
+// refer to the binary itself and never to an archive.
+func releaseArtifactName(goos, goarch string) string {
+	os := goos
+	if os == "darwin" {
+		os = "macos"
+	}
+	name := fmt.Sprintf("timbuktu-%s-%s", os, goarch)
+	if goos == "windows" {
+		name += ".exe"
+	}
+	return name
+}
+
 func (a *App) commandUpdates() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "updates",
@@ -657,11 +680,9 @@ func (a *App) commandUpdates() *cobra.Command {
 	}
 	cfgUpdate := selfupdate.Config{
 		Owner: "QYVORA", Repo: "qyvora-timbuktu", ToolName: "timbuktu",
-		CurrentVer: version.Version,
-		ArtifactName: func(goos, goarch string) string {
-			return fmt.Sprintf("timbuktu_%s_%s.tar.gz", goos, goarch)
-		},
-		ChecksumAsset: func(artifact string) string { return artifact + ".sha256" },
+		CurrentVer:    version.Version,
+		ArtifactName:  releaseArtifactName,
+		ChecksumAsset: func(string) string { return "checksums.txt" },
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "check",
