@@ -22,7 +22,6 @@ import (
 	"github.com/QYVORA/qyvora-timbuktu/internal/analysis"
 	"github.com/QYVORA/qyvora-timbuktu/internal/capabilities"
 	"github.com/QYVORA/qyvora-timbuktu/internal/config"
-	"github.com/QYVORA/qyvora-timbuktu/internal/console"
 	pexit "github.com/QYVORA/qyvora-timbuktu/internal/errors"
 	"github.com/QYVORA/qyvora-timbuktu/internal/events"
 	"github.com/QYVORA/qyvora-timbuktu/internal/evidence"
@@ -102,6 +101,21 @@ func cobraUsageError(err error) error {
 func Execute() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	return ExecuteArgsContext(ctx, os.Args[1:])
+}
+
+// ExecuteArgsContext runs the command tree with an explicit argument vector
+// under a caller-supplied context and returns the process exit code.
+//
+// The interactive TUI needs this form. It runs commands in-process on its own
+// goroutine and must be able to cancel a single execution without tearing down
+// the process, so the work is driven by a context the caller owns rather than by
+// process-wide signal handling. That distinction is what makes Ctrl+C cancel the
+// operation instead of the interface.
+//
+// The tree is rebuilt for every call, so no state survives from one execution to
+// the next and a flag set by one command cannot silently affect the next.
+func ExecuteArgsContext(ctx context.Context, args []string) int {
 	app, err := newApp()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -109,6 +123,7 @@ func Execute() int {
 	}
 	cmd := app.rootCommand()
 	cmd.SetContext(ctx)
+	cmd.SetArgs(args)
 	if err := cmd.Execute(); err != nil {
 		err = cobraUsageError(err)
 		fmt.Fprintln(os.Stderr, err)
@@ -165,6 +180,9 @@ func (a *App) rootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.RunE = func(cmd *cobra.Command, _ []string) error {
+		return runTUI(cmd.Root(), cmd.Context())
+	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return pexit.NewExitError(CodeUsage, err.Error())
 	})
@@ -186,7 +204,7 @@ func (a *App) rootCommand() *cobra.Command {
 	root.AddCommand(a.commandFindings())
 	root.AddCommand(a.commandEvidence())
 	root.AddCommand(a.commandUpdates())
-	root.AddCommand(a.commandConsole())
+	root.AddCommand(commandTUI())
 	root.AddCommand(a.commandCompletion())
 	return root
 }
@@ -430,7 +448,12 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 	redactForOutput := cloneResult(step.Result)
 	models.RedactSecretData(redactForOutput.Evidence)
 	if !(opts.Quiet && p.Format() == output.FormatTerminal) {
-		p.Print(&redactForOutput)
+		// The value, not a pointer to it. The machine formats marshal through
+		// a pointer happily, but the terminal format writes the value with %v,
+		// so passing &redactForOutput printed a raw struct dump -- complete
+		// with the addresses of the function values inside it -- instead of
+		// the assessment.
+		p.Print(redactForOutput)
 	}
 
 	// Persistent report artifact (unless suppressed). Reports are redacted.
@@ -715,48 +738,6 @@ func (a *App) commandUpdates() *cobra.Command {
 		},
 	})
 	return cmd
-}
-
-func (a *App) commandConsole() *cobra.Command {
-	return &cobra.Command{
-		Use:   "console",
-		Short: "start the interactive assessment console",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			con, err := console.New(console.App{
-				Execute: func(ctx context.Context, conArgs []string, p *output.Printer) error {
-					opts := assessOpts{}
-					for i := 0; i < len(conArgs); i++ {
-						switch conArgs[i] {
-						case "--sim":
-							opts.Sim = true
-						case "--case":
-							if i+1 < len(conArgs) {
-								opts.Case = conArgs[i+1]
-								i++
-							}
-						case "--report-dir":
-							if i+1 < len(conArgs) {
-								opts.ReportDir = conArgs[i+1]
-								i++
-							}
-						}
-					}
-					return a.runAssess(ctx, p, opts)
-				},
-				Printer:  a.Printer,
-				Manager:  a.Manager,
-				Registry: mustRegistry(a.registry()),
-				Version:  version.String(),
-				Out:      a.Stdout,
-				ErrOut:   a.Stderr,
-			})
-			if err != nil {
-				return pexit.WrapExitError(CodeRuntime, "starting console", err)
-			}
-			con.Run(cmd.Context())
-			return nil
-		},
-	}
 }
 
 func (a *App) commandCompletion() *cobra.Command {
