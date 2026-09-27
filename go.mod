@@ -3,7 +3,7 @@ module github.com/QYVORA/qyvora-timbuktu
 go 1.26.5
 
 require (
-	github.com/QYVORA/qyvora-tui v0.3.1
+	github.com/QYVORA/qyvora-tui v0.4.0
 	github.com/ergochat/readline v0.1.3
 	github.com/fatih/color v1.19.0
 	github.com/spf13/cobra v1.10.2
