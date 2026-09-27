@@ -172,6 +172,7 @@ func (a *App) rootCommand() *cobra.Command {
 	pf.StringVarP(&format, "output", "o", "", "output format: terminal, json, yaml, markdown, html")
 	pf.BoolVar(&noColor, "no-color", false, "disable ANSI color (NO_COLOR is also honored)")
 	pf.BoolVarP(&quiet, "quiet", "q", false, "suppress informational terminal output")
+	pf.StringVar(&eventsFlag, "events", "stderr", "JSONL event stream: stdout, stderr (default), off, or a file path")
 	_ = quiet
 
 	root.AddCommand(a.commandAssess())
@@ -369,7 +370,12 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 		return pexit.NewExitError(CodeUsage, firstCheckMessage(plan))
 	}
 
-	counter := &countWriter{w: a.Stderr}
+	sink, sinkCloser, err := a.eventsSink()
+	if err != nil {
+		return pexit.WrapExitError(CodeRuntime, "resolving --events destination", err)
+	}
+	defer sinkCloser()
+	counter := &countWriter{w: sink}
 	stream := events.NewStream(counter)
 	repDir := opts.ReportDir
 	if repDir == "" {
@@ -808,6 +814,49 @@ func (c *countWriter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
 	c.n += n
 	return n, err
+}
+
+// eventsFlag is bound to --events by rootCommand.
+var eventsFlag string
+
+// eventsSink resolves the --events destination spec into a writer plus a
+// cleanup function:
+//
+//	""  and the disable words  no event stream
+//	"stdout"                     JSONL on stdout, with the report moved to stderr
+//	"stderr"                     JSONL on stderr (the default, and what this
+//	                              framework has always done)
+//	anything else                a file path, created/truncated with 0600
+//
+// The stream used to be hard-wired to a line counter wrapping stderr, so a
+// caller could not capture it, redirect it to a file, or turn it off. A
+// structured event stream that can only ever reach stderr is unusable for
+// automation, which is the whole point of emitting it.
+//
+// Line counting is unaffected by the destination, so the "events" field in a
+// JSON report is identical whether or not a stream was requested.
+func (a *App) eventsSink() (io.Writer, func(), error) {
+	switch strings.ToLower(eventsFlag) {
+	case "", "off", "none", "disable", "disabled":
+		// Discarded rather than absent: the counter still runs, so the
+		// reported event volume does not depend on the destination.
+		return io.Discard, func() {}, nil
+	case "stdout":
+		// stdout carries only the JSONL stream, so the report and any human
+		// lines move to stderr.
+		if a.Printer != nil {
+			a.Printer.SetWriter(a.Stderr)
+		}
+		return os.Stdout, func() {}, nil
+	case "stderr":
+		return a.Stderr, func() {}, nil
+	default:
+		f, err := os.OpenFile(eventsFlag, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return nil, nil, fmt.Errorf("events file: %w", err)
+		}
+		return f, func() { _ = f.Close() }, nil
+	}
 }
 
 // persistResult stores the latest run as JSON so report/findings/evidence
