@@ -817,11 +817,12 @@ var eventsFlag string
 // Line counting is unaffected by the destination, so the "events" field in a
 // JSON report is identical whether or not a stream was requested.
 func (a *App) eventsSink() (io.Writer, func(), error) {
-	switch strings.ToLower(eventsFlag) {
-	case "", "off", "none", "disable", "disabled":
+	if eventsDisabled(eventsFlag) {
 		// Discarded rather than absent: the counter still runs, so the
 		// reported event volume does not depend on the destination.
 		return io.Discard, func() {}, nil
+	}
+	switch strings.ToLower(eventsFlag) {
 	case "stdout":
 		// stdout carries only the JSONL stream, so the report and any human
 		// lines move to stderr.
@@ -910,4 +911,18 @@ func loadLatestResult(dir string) (*models.Result, error) {
 		return nil, err
 	}
 	return &res, nil
+}
+
+// eventsDisabled reports whether a --events value asks for no stream at all.
+//
+// The interactive guard and the event plumbing both need this answer, so the
+// words are named once. A value that turns the stream off must not read as a
+// request to send it somewhere: `tool --events off` opens the session
+// happily, because there is nothing for it to contradict.
+func eventsDisabled(spec string) bool {
+	switch strings.ToLower(spec) {
+	case "", "off", "none", "disable", "disabled":
+		return true
+	}
+	return false
 }
