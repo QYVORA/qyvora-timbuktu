@@ -123,9 +123,15 @@ up**.
 
 ## Documentation
 
-- Pipeline stages, analysis rules and risk scoring: `docs/` (being
-  populated) and the QYVORA docs repository overview.
+- **[`docs/README.md`](docs/README.md) — the documentation index.** It lists what is
+  actually written, and names every zero-byte placeholder file explicitly so
+  nothing empty is cited as documentation.
+- Pipeline stages, analysis rules and risk scoring: the tool's own
+  `capabilities` output, `docs/README.md`, and the QYVORA product overview.
 - Cross-project contracts: the QYVORA tool output spec and ecosystem doc.
+
+> **Documentation gap.** This repository still has zero-byte placeholder
+> files (including `LICENSE` and `NOTICE`). `docs/README.md` names them all.
 
 ## Support
 
