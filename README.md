@@ -140,7 +140,7 @@ See [SUPPORT.md](SUPPORT.md). Report issues on GitHub.
 ## Contact
 
 QYVORA OffSec — Tamale, Ghana
-Website: https://qyvora.netlify.app · Security/Support: qyvorasec@gmail.com
+Website: https://qyvora.org · Security/Support: qyvorasec@gmail.com
 
 ## License
 
