@@ -116,7 +116,7 @@ func (e *exitStatusError) Error() string {
 // necessary because the shared TUI deliberately does not depend on Cobra: which
 // command framework a tool uses is that tool's decision, not the interface's.
 func tuiCommands(root *cobra.Command) []tui.Command {
-	return tui.CollectCommands(cobraNode{root})
+	return tui.CobraCommands(root)
 }
 
 // cobraNode adapts a Cobra command to the TUI's command-tree interface.
