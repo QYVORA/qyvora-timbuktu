@@ -26,6 +26,7 @@ type OperationMetadata struct {
 	Description  string           `json:"description"`
 	Class        Class            `json:"class"`
 	Risk         models.RiskLevel `json:"risk"`
+	NoiseLevel   models.NoiseLevel   `json:"noise_level"`
 	TargetType   string           `json:"target_type"`
 	AuthRequired bool             `json:"authorization_required"`
 	Confirm      bool             `json:"confirmation_required"`
@@ -39,21 +40,21 @@ var (
 	OpCaseParse = OperationMetadata{
 		ID: "timbuktu.case.parse", Name: "forensic case analysis",
 		Description: "Parse and analyze a read-only forensic case file.",
-		Class:       ClassDiscovery, Risk: models.RiskS1, TargetType: "case",
+		Class:       ClassDiscovery, Risk: models.RiskS1, NoiseLevel: models.NoiseLevelPassive, TargetType: "case",
 		AuthRequired: false, Confirm: false, ChangesState: false, Reversible: true,
 	}
 	// OpAnalyze runs the analysis pipeline over collected evidence. Read-only.
 	OpAnalyze = OperationMetadata{
 		ID: "timbuktu.analyze", Name: "digital forensics analysis",
 		Description: "Run artifact, filesystem, memory, timeline, log and indicator analysis.",
-		Class:       ClassAnalysis, Risk: models.RiskS1, TargetType: "any",
+		Class:       ClassAnalysis, Risk: models.RiskS1, NoiseLevel: models.NoiseLevelPassive, TargetType: "any",
 		AuthRequired: false, Confirm: false, ChangesState: false, Reversible: true,
 	}
 	// OpLiveAcquisition would contact a live host. Not implemented.
 	OpLiveAcquisition = OperationMetadata{
 		ID: "timbuktu.live.acquisition", Name: "live host acquisition",
 		Description: "Acquire memory/disk directly from a live endpoint (NOT IMPLEMENTED).",
-		Class:       ClassLive, Risk: models.RiskS2, TargetType: "live",
+		Class:       ClassLive, Risk: models.RiskS2, NoiseLevel: models.NoiseLevelModerate, TargetType: "live",
 		AuthRequired: true, Confirm: true, ChangesState: true, Reversible: false,
 	}
 )
