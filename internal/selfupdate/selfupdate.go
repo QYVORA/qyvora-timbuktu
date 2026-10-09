@@ -65,7 +65,7 @@ type Config struct {
 	Repo          string
 	ToolName      string
 	CurrentVer    string // running binary's version
-	ArtifactName  func(goos, goarch string) string
+	ArtifactName  func(version, goos, goarch string) string
 	ChecksumAsset func(artifact string) string
 	APIBaseURL    string // overrides the GitHub API base (tests point it locally)
 }
@@ -123,7 +123,7 @@ func Run(ctx context.Context, cfg Config, opts Options) (Result, error) {
 		return res, nil
 	}
 
-	artifact := cfg.ArtifactName(runtime.GOOS, runtime.GOARCH)
+	artifact := cfg.ArtifactName(res.Latest, runtime.GOOS, runtime.GOARCH)
 	if artifact == "" {
 		return res, fmt.Errorf("%s: no release artifact for %s/%s", cfg.ToolName, runtime.GOOS, runtime.GOARCH)
 	}
@@ -148,7 +148,12 @@ func Run(ctx context.Context, cfg Config, opts Options) (Result, error) {
 		}
 	}
 
-	if err := atomicInstall(path, data); err != nil {
+	bin, xerr := extractBinary(data, artifact, cfg.ToolName)
+	if xerr != nil {
+		return res, fmt.Errorf("%s: extracting %s: %w", cfg.ToolName, artifact, xerr)
+	}
+
+	if err := atomicInstall(path, bin); err != nil {
 		return res, fmt.Errorf("%s: installing: %w", cfg.ToolName, err)
 	}
 	res.Status = StatusUpdated

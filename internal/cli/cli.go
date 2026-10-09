@@ -676,27 +676,23 @@ func (a *App) commandEvidence() *cobra.Command {
 	}
 }
 
-// releaseArtifactName maps a Go target onto the exact release asset
-// name. It is a package-level function rather than an inline closure
-// so that release_artifact_name_test.go can pin the naming contract,
-// which is shared with the release workflow and with install.sh.
-//
-// Two details are easy to get wrong and both were wrong here before:
-// macOS is published as "macos", never "darwin"; and Android/Termux
-// is published as "android", which is exactly what runtime.GOOS
-// already reports for a GOOS=android build. The updater installs the
-// downloaded bytes as the executable directly, so this name must
-// refer to the binary itself and never to an archive.
-func releaseArtifactName(goos, goarch string) string {
+// releaseArtifactName maps a release version plus a Go target onto the exact
+// release asset name. The release pipeline publishes versioned archives
+// (timbuktu_<version>_<os>_<arch>.tar.gz, .zip on windows); GoReleaser embeds
+// the tag with its leading "v" stripped and names darwin assets "macos", never
+// "darwin". Android is published as "android", which is what runtime.GOOS
+// already reports for a GOOS=android build.
+func releaseArtifactName(version, goos, goarch string) string {
 	os := goos
 	if os == "darwin" {
 		os = "macos"
 	}
-	name := fmt.Sprintf("timbuktu-%s-%s", os, goarch)
+	ver := strings.TrimPrefix(strings.TrimPrefix(version, "v"), "V")
+	name := fmt.Sprintf("timbuktu_%s_%s_%s", ver, os, goarch)
 	if goos == "windows" {
-		name += ".exe"
+		return name + ".zip"
 	}
-	return name
+	return name + ".tar.gz"
 }
 
 func (a *App) commandUpdates() *cobra.Command {
