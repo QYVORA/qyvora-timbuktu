@@ -180,8 +180,11 @@ func (a *App) rootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// The bare invocation is one-shot CLI only: print usage rather than drop
+	// into an interactive interface. The per-tool TUI is disabled pending the
+	// redirect of qyvora-tui to the future AI orchestration layer.
 	root.RunE = func(cmd *cobra.Command, _ []string) error {
-		return runTUI(cmd.Root(), cmd.Context())
+		return cmd.Help()
 	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return pexit.NewExitError(CodeUsage, err.Error())
@@ -204,7 +207,6 @@ func (a *App) rootCommand() *cobra.Command {
 	root.AddCommand(a.commandFindings())
 	root.AddCommand(a.commandEvidence())
 	root.AddCommand(a.commandUpdates())
-	root.AddCommand(commandTUI())
 	root.AddCommand(a.commandCompletion())
 	return root
 }

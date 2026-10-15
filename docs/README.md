@@ -27,7 +27,7 @@ Cross-project contracts (authoritative, non-empty):
 
 - [QYVORA-ECOSYSTEM.md](../../../../knowledge/qyvora-docs/09-technical/cross-project/QYVORA-ECOSYSTEM.md)
 - [QYVORA-TOOL-OUTPUT-SPEC.md](../../../../knowledge/qyvora-docs/09-technical/cross-project/QYVORA-TOOL-OUTPUT-SPEC.md)
-- [07-products overview](../../../../knowledge/qyvora-docs/07-products/timbuktu/)
+- [07-products overview](../../../../knowledge/qyvora-docs/07-products/frameworks/timbuktu/)
 
 ## Known gap — placeholder files (`UNVERIFIED`)
 
