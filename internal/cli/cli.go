@@ -179,6 +179,11 @@ func (a *App) rootCommand() *cobra.Command {
 		Version:       version.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Example: "  timbuktu recon assess --sim\n" +
+			"  timbuktu recon target add snapshot ./case.json\n" +
+			"  timbuktu report findings -o json\n" +
+			"  timbuktu capabilities -o json\n" +
+			"  timbuktu version",
 	}
 	// The bare invocation is one-shot CLI only: print usage rather than drop
 	// into an interactive interface. The per-tool TUI is disabled pending the
@@ -196,19 +201,82 @@ func (a *App) rootCommand() *cobra.Command {
 	pf.StringVar(&eventsFlag, "events", "stderr", "JSONL event stream: stdout, stderr (default), off, or a file path")
 	_ = quiet
 
-	root.AddCommand(a.commandAssess())
-	root.AddCommand(a.commandVersion("version"))
-	root.AddCommand(a.commandCase())
-	root.AddCommand(a.commandCapabilities())
-	root.AddCommand(a.commandSources())
-	root.AddCommand(a.commandRules())
-	root.AddCommand(a.commandTarget())
-	root.AddCommand(a.commandReport())
-	root.AddCommand(a.commandFindings())
-	root.AddCommand(a.commandEvidence())
-	root.AddCommand(a.commandUpdates())
-	root.AddCommand(a.commandCompletion())
+	// Tier grammar: <tool> <tier> <module> [<action>] [target] [flags], where
+	// tier is recon, exploit or report. All three tiers always exist so the
+	// shape is discoverable from help; a tier with no modules explains itself
+	// rather than rendering as a blank parent.
+	recon := &cobra.Command{
+		Use:   "recon",
+		Short: "discovery and collection commands",
+	}
+	recon.AddCommand(
+		a.commandAssess(),
+		a.commandCase(),
+		a.commandSources(),
+		a.commandRules(),
+		a.commandTarget(),
+	)
+
+	exploit := &cobra.Command{
+		Use:   "exploit",
+		Short: "active exploitation commands",
+	}
+	exploit.RunE = func(_ *cobra.Command, _ []string) error {
+		return pexit.NewExitError(CodeUsage,
+			"exploit has no modules in this framework (assessment is offline and read-only)")
+	}
+
+	// The report tier's default action re-renders the latest saved report, so
+	// the pre-grammar path `timbuktu report` keeps working unchanged.
+	reportT := &cobra.Command{
+		Use:   "report",
+		Short: "inspect and render assessment output",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			p, err := a.printerFor(cmd)
+			if err != nil {
+				return err
+			}
+			res, err := loadLatestResult(a.Cfg.GetString("report.dir"))
+			if err != nil {
+				return pexit.WrapExitError(CodeRuntime, "loading report state", err)
+			}
+			p.Print(res)
+			return nil
+		},
+	}
+	reportT.AddCommand(a.commandFindings(), a.commandEvidence())
+
+	root.AddCommand(recon, exploit, reportT)
+
+	// Flat utility verbs, shared by every QYVORA framework.
+	root.AddCommand(
+		a.commandVersion("version"),
+		a.commandCapabilities(),
+		a.commandUpdates(),
+		a.commandCompletion(),
+	)
+
+	// Backward-compat aliases: the tier grammar is canonical, but the old
+	// top-level paths remain (hidden, so help only shows the new shape).
+	root.AddCommand(
+		hiddenAlias("assess", a.commandAssess()),
+		hiddenAlias("case", a.commandCase()),
+		hiddenAlias("sources", a.commandSources()),
+		hiddenAlias("rules", a.commandRules()),
+		hiddenAlias("target", a.commandTarget()),
+		hiddenAlias("findings", a.commandFindings()),
+		hiddenAlias("evidence", a.commandEvidence()),
+	)
 	return root
+}
+
+// hiddenAlias returns c renamed to name and marked hidden. It registers the
+// pre-tier-grammar path for a command that now lives under a tier, so existing
+// invocations and scripts keep working while help advertises only the new shape.
+func hiddenAlias(name string, c *cobra.Command) *cobra.Command {
+	c.Use = name
+	c.Hidden = true
+	return c
 }
 
 func (a *App) commandVersion(name string) *cobra.Command {
@@ -598,26 +666,6 @@ func (a *App) commandTarget() *cobra.Command {
 	}
 	cmd.AddCommand(add, clear)
 	return cmd
-}
-
-func (a *App) commandReport() *cobra.Command {
-	return &cobra.Command{
-		Use:   "report",
-		Short: "render the latest assessment report from disk",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := a.printerFor(cmd)
-			if err != nil {
-				return err
-			}
-			repDir := a.Cfg.GetString("report.dir")
-			res, err := loadLatestResult(repDir)
-			if err != nil {
-				return pexit.WrapExitError(CodeRuntime, "loading report state", err)
-			}
-			p.Print(res)
-			return nil
-		},
-	}
 }
 
 func (a *App) commandFindings() *cobra.Command {
