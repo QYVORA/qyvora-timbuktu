@@ -3,6 +3,7 @@ module github.com/QYVORA/qyvora-timbuktu
 go 1.26.5
 
 require (
+	github.com/QYVORA/qyvora-script v0.1.0
 	github.com/QYVORA/qyvora-tui v0.11.0
 	github.com/fatih/color v1.19.0
 	github.com/muesli/termenv v0.16.0
@@ -10,6 +11,8 @@ require (
 	github.com/spf13/viper v1.21.0
 	go.yaml.in/yaml/v3 v3.0.5
 )
+
+replace github.com/QYVORA/qyvora-script => ../../shared/qyvora-script
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect

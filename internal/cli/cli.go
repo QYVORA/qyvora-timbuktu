@@ -199,6 +199,7 @@ func (a *App) rootCommand() *cobra.Command {
 	pf.BoolVar(&noColor, "no-color", false, "disable ANSI color (NO_COLOR is also honored)")
 	pf.BoolVarP(&quiet, "quiet", "q", false, "suppress informational terminal output")
 	pf.StringVar(&eventsFlag, "events", "stderr", "JSONL event stream: stdout, stderr (default), off, or a file path")
+	pf.BoolVar(&allowShellOut, "allow-shellout", false, "allow scripts to use exec/run.cmd shell-out (also via QYVORA_ALLOW_SHELLOUT=1)")
 	_ = quiet
 
 	// Tier grammar: <tool> <tier> <module> [<action>] [target] [flags], where
@@ -254,6 +255,7 @@ func (a *App) rootCommand() *cobra.Command {
 		a.commandCapabilities(),
 		a.commandUpdates(),
 		a.commandCompletion(),
+		a.commandScript(),
 	)
 
 	// Backward-compat aliases: the tier grammar is canonical, but the old
