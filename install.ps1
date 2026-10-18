@@ -39,7 +39,7 @@ $SourceBuild = '1'
 $MinGo      = '1.26'
 $IconAsset  = 'timbuktu.png'
 $IcoAsset   = 'timbuktu.ico'
-$AppComment = 'Supply chain and dependency provenance analysis'
+$AppComment = 'Incident response and digital forensics'
 # The OS/architecture tokens this tool actually publishes prebuilt archives
 # for. A tool that cannot cross-compile (linux-only transports, or cgo that
 # must link on the release runner) declares a subset here, so this installer

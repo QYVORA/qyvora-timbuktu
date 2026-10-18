@@ -79,8 +79,8 @@ QYVORA_MIN_GO="1.26"
 QYVORA_ICON="timbuktu.png"
 QYVORA_ICO="timbuktu.ico"
 QYVORA_DESKTOP_NAME="TIMBUKTU"
-QYVORA_DESKTOP_COMMENT="Supply chain and dependency provenance analysis"
-QYVORA_DESKTOP_KEYWORDS="supply-chain;provenance;sbom;dependency;typosquat;package;audit"
+QYVORA_DESKTOP_COMMENT="Incident response and digital forensics"
+QYVORA_DESKTOP_KEYWORDS="dfir;forensics;incident-response;timeline;artifacts;ioc"
 # Ordered probes used to prove the installed binary runs
 QYVORA_VERSION_PROBE="--version version --help"
 # Additional .desktop entry, if the upstream asset ships one
