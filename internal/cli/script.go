@@ -289,7 +289,7 @@ func (b *scriptBinding) report(path string) error {
 	if err != nil {
 		return err
 	}
-		_, _ = fmt.Fprintln(b.printer.Writer(), "report written to "+written)
+	_, _ = fmt.Fprintln(b.printer.Writer(), "report written to "+written)
 	return nil
 }
 
