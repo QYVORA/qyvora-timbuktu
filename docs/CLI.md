@@ -32,4 +32,4 @@ _No report-tier modules._
 | `timbuktu sources` | list supported evidence sources and their status |
 | `timbuktu target` | manage assessment targets (case files and simulation) |
 | `timbuktu tui` | start the interactive terminal application |
-
+| `docs script <file>` | Run a `.qs` script with the shared scripting engine (`run`/`build` subcommands) |
