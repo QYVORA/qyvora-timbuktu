@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/QYVORA/qyvora-timbuktu/internal/analysis"
+	"github.com/QYVORA/qyvora-timbuktu/internal/banner"
 	"github.com/QYVORA/qyvora-timbuktu/internal/capabilities"
 	"github.com/QYVORA/qyvora-timbuktu/internal/config"
 	pexit "github.com/QYVORA/qyvora-timbuktu/internal/errors"
@@ -175,7 +176,7 @@ func (a *App) rootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "timbuktu",
 		Short:         "QYVORA digital forensics and incident response framework",
-		Long:          "timbuktu analyzes offline forensic cases and deterministic simulations for evidence integrity, artifact, filesystem, memory, timeline, log, indicator and investigation risk. Live host acquisition is not implemented and is refused honestly.",
+		Long:          banner.Render() + "\n\n  " + banner.Tagline + " — " + version.CompanyName + "\n  " + version.CompanyURL + "\n  Built in " + version.CompanyCity + "\n\n" + "timbuktu analyzes offline forensic cases and deterministic simulations for evidence integrity, artifact, filesystem, memory, timeline, log, indicator and investigation risk. Live host acquisition is not implemented and is refused honestly.",
 		Version:       version.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
