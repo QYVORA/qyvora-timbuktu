@@ -176,7 +176,7 @@ func (a *App) rootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "timbuktu",
 		Short:         "QYVORA digital forensics and incident response framework",
-		Long:          banner.Render() + "\n\n  " + banner.Tagline + " — " + version.CompanyName + "\n  " + version.CompanyURL + "\n  Built in " + version.CompanyCity + "\n\n" + "timbuktu analyzes offline forensic cases and deterministic simulations for evidence integrity, artifact, filesystem, memory, timeline, log, indicator and investigation risk. Live host acquisition is not implemented and is refused honestly.",
+		Long:          banner.Render() + "\n\n  " + banner.Tagline + " — " + version.CompanyName + "\n  " + version.CompanyURL + "\n  Built in " + version.CompanyCity + "\n\n" + "timbuktu analyzes offline forensic cases and deterministic simulations for evidence integrity, artifact, filesystem, memory, timeline, log, indicator and investigation risk. Live host acquisition is not implemented and is refused honestly." + "\n\nCommands follow the shared tier grammar\ntimbuktu <tier> <module> [<action>] [target] [flags], where the tier is one of\nrecon, exploit, or report. Run it with no arguments to print this help;\nassessment is one-shot.",
 		Version:       version.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
