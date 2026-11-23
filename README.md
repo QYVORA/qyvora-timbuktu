@@ -1,9 +1,9 @@
 # Timbuktu
 
 > **Incident response & digital forensics framework.**
-> A terminal-first console and CLI for offline forensic case analysis:
-> evidence integrity, artifacts, filesystem and memory surfaces, logs,
-> timelines and indicators of compromise.
+> A one-shot CLI for offline forensic case analysis: evidence integrity,
+> artifacts, filesystem and memory surfaces, logs, timelines and indicators
+> of compromise.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -11,13 +11,12 @@
 
 Timbuktu is QYVORA's incident response & digital forensics framework for
 **offline forensic case files** and deterministic simulations. It runs as
-a shared terminal-first console **and** a one-shot CLI with identical
-commands, and produces evidence-backed findings with transparent risk
+a one-shot CLI and produces evidence-backed findings with transparent risk
 scoring. **Live host acquisition is not implemented and is refused
 honestly**; Timbuktu analyzes only the case files you explicitly provide.
 
-- **One workflow, two surfaces** — the console commands equal the CLI
-  commands.
+- **One workflow, one surface** — every assessment runs through the one-shot
+  CLI.
 - **Deterministic `--sim`** — fixed dataset exercises every rule, no
   acquired host required, CI-ready.
 - **Offline only** — analyzes only the case files you explicitly provide.
@@ -59,15 +58,10 @@ timbuktu case --sim
 timbuktu assess case.sim.json
 ```
 
-Interactive console (REPL on a real terminal; stdin piping uses a plain line reader):
-
-```sh
-timbuktu
-assess --sim
-findings
-evidence
-exit
-```
+The interactive console is retired and unavailable in this release. The
+per-tool TUI is excluded from builds (`//go:build ignore`) pending the redirect
+of qyvora-tui to the future AI orchestration layer; a bare invocation prints
+CLI usage. Use the one-shot commands above.
 
 Machine-readable output:
 
@@ -83,7 +77,6 @@ timbuktu report -o json
 assess        run the analysis pipeline against a case or simulation
 capabilities  print the machine-readable capability contract
 case          generate a deterministic sample forensic case
-console       start the interactive assessment console
 evidence      inspect the latest assessment evidence
 findings      inspect the latest assessment findings
 report        render the latest assessment report from disk

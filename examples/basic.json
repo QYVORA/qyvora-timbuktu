@@ -1,0 +1,15 @@
+{
+  "schema": "qyvora.timbuktu.case.v1",
+  "case_id": "CASE-EXAMPLE-001",
+  "title": "Basic offline forensic case",
+  "source": "disk",
+  "evidence": [
+    {
+      "id": "EV-001",
+      "kind": "disk_image",
+      "name": "workstation.img",
+      "source": "disk",
+      "path": "/evidence/workstation.img"
+    }
+  ]
+}
