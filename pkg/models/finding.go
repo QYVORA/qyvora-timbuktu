@@ -157,10 +157,7 @@ func looksSecretValue(s string) bool {
 			return true
 		}
 	}
-	if secretValueRx.MatchString(s) {
-		return true
-	}
-	return false
+	return secretValueRx.MatchString(s)
 }
 
 // secretValueRx detects credential-shaped values wherever they appear in a

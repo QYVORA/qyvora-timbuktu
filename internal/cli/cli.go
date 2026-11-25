@@ -520,7 +520,7 @@ func (a *App) runAssess(ctx context.Context, p *output.Printer, opts assessOpts)
 	// never mutated; non-secret evidence stays readable for triage.
 	redactForOutput := cloneResult(step.Result)
 	models.RedactSecretData(redactForOutput.Evidence)
-	if !(opts.Quiet && p.Format() == output.FormatTerminal) {
+	if !opts.Quiet || p.Format() != output.FormatTerminal {
 		// The value, not a pointer to it. The machine formats marshal through
 		// a pointer happily, but the terminal format writes the value with %v,
 		// so passing &redactForOutput printed a raw struct dump -- complete
@@ -938,15 +938,6 @@ func cloneFinding(f *models.Finding) models.Finding {
 		c.Attributes[k] = v
 	}
 	return c
-}
-
-// mustRegistry returns the built-in rule registry, panicking only on a
-// defective static rule set (duplicate IDs are a build-time bug).
-func mustRegistry(reg *rules.Registry, err error) *rules.Registry {
-	if err != nil {
-		panic(err)
-	}
-	return reg
 }
 
 func loadLatestResult(dir string) (*models.Result, error) {
