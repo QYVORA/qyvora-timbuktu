@@ -21,7 +21,7 @@ import (
 // finding.
 func TestSimulationPipelineProducesFindings(t *testing.T) {
 	reg := rules.NewRegistry()
-	reg.RegisterAll(builtin.All()...)
+	_ = reg.RegisterAll(builtin.All()...)
 
 	var evBuf bytes.Buffer
 	stream := events.NewStream(&evBuf)
@@ -80,7 +80,7 @@ func TestSimulationPipelineProducesFindings(t *testing.T) {
 // case document and verifies a filesystem finding ships.
 func TestCasePipelineAcceptsFileTarget(t *testing.T) {
 	reg := rules.NewRegistry()
-	reg.RegisterAll(builtin.All()...)
+	_ = reg.RegisterAll(builtin.All()...)
 
 	doc := `{"schema":"qyvora.timbuktu.case.v1","case_id":"INC-T-1","source":"disk",
 	  "evidence":[{"id":"ev-1","kind":"disk_image","content":"payload"}],

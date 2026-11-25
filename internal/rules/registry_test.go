@@ -105,7 +105,9 @@ func TestSinkDedupMergesConfidenceAndEvidence(t *testing.T) {
 }
 
 func TestStableFindingIDIsDeterministic(t *testing.T) {
-	if stableFindingID("abc") != stableFindingID("abc") {
+	first := stableFindingID("abc")
+	second := stableFindingID("abc")
+	if first != second {
 		t.Error("stable id must be a pure function of the fingerprint")
 	}
 	if stableFindingID("a") == stableFindingID("b") {
@@ -122,7 +124,7 @@ func TestRunProfileQuickRunsOnlyHighAndCritical(t *testing.T) {
 		ran[id] = true
 		mu.Unlock()
 	}
-	reg.RegisterAll(
+	_ = reg.RegisterAll(
 		oracle("CRIT", models.SeverityCritical, func(_ context.Context, s *Sink) {
 			mark("CRIT")
 			s.Add(&models.Finding{RuleID: "CRIT", Category: "t", Title: "c", Severity: models.SeverityCritical})
@@ -164,7 +166,7 @@ func TestRunProfileDeepRunsEverything(t *testing.T) {
 		ran[id] = true
 		mu.Unlock()
 	}
-	reg.RegisterAll(
+	_ = reg.RegisterAll(
 		oracle("CRIT", models.SeverityCritical, func(_ context.Context, _ *Sink) { mark("CRIT") }, false),
 		oracle("INFO", models.SeverityInformational, func(_ context.Context, _ *Sink) { mark("INFO") }, false),
 	)
@@ -178,7 +180,7 @@ func TestRunProfileDeepRunsEverything(t *testing.T) {
 
 func TestRunIsolatesPanickingRule(t *testing.T) {
 	reg := NewRegistry()
-	reg.RegisterAll(
+	_ = reg.RegisterAll(
 		oracle("PANIC", models.SeverityHigh, nil, true),
 		oracle("OK", models.SeverityHigh, func(_ context.Context, s *Sink) {
 			s.Add(&models.Finding{RuleID: "OK", Category: "t", Title: "ok", Severity: models.SeverityHigh})
@@ -215,7 +217,7 @@ func TestRunFlushOrderIsRegistrationOrder(t *testing.T) {
 	ids := []string{"R1", "R2", "R3", "R4"}
 	for _, id := range ids {
 		id := id
-		reg.Register(oracle(id, models.SeverityHigh, func(_ context.Context, s *Sink) {
+		_ = reg.Register(oracle(id, models.SeverityHigh, func(_ context.Context, s *Sink) {
 			s.Add(&models.Finding{RuleID: id, Category: "t", Title: id, Severity: models.SeverityHigh})
 		}, false))
 	}
