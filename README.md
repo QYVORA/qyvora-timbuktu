@@ -7,6 +7,10 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+## Readiness
+
+**BETA.** Timbuktu performs offline forensic case analysis, refuses live acquisition, and hashes evidence without modifying it. Implementation exists for exploration/testing but has not received final production-readiness approval. Its owner classification is `BETA` in the [Product Registry](../../../../knowledge/qyvora-docs/07-products/PRODUCT-REGISTRY.md); shipped implementation and tags do not promote it to `AVAILABLE`.
+
 ## Overview
 
 Timbuktu is QYVORA's incident response & digital forensics framework for
